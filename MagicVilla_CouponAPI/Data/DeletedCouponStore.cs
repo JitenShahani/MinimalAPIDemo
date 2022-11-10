@@ -1,6 +1,6 @@
 ﻿namespace MagicVilla_CouponAPI.Data;
 
-public class CouponStore
+public class DeletedCouponStore
 {
     public static List<Coupon> CouponList = new()
     {

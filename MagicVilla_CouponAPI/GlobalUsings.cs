@@ -10,3 +10,6 @@ global using MagicVilla_CouponAPI.Mapping;
 
 global using AutoMapper;
 global using FluentValidation;
+global using Microsoft.OpenApi.Models;
+
+global using Microsoft.EntityFrameworkCore;
