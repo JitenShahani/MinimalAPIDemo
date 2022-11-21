@@ -6,5 +6,8 @@ public class MappingConfig : Profile
     {
         CreateMap<Coupon, CouponCreateRequest>().ReverseMap();
         CreateMap<Coupon, CouponCreateResponse>().ReverseMap();
+        CreateMap<Coupon, CouponUpdateRequest>().ReverseMap();
+        CreateMap<Coupon, CouponUpdateResponse>().ReverseMap();
+        CreateMap<LocalUser, User>().ReverseMap();
     }
 }

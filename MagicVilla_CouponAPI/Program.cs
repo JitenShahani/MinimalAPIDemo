@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -16,10 +18,62 @@ builder.Services.AddSwaggerGen(options =>
             Email = "shahani.jiten@gmail.com"
         }
     });
+
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description =
+            "JWT Authorization header using the bearer scheme. \r\n\r\n " +
+            "Enter 'Bearer' [space] and then your token in the text input below.\r\n\r\n" +
+            "Example: \"Bearer 12345abcdef\"",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement()
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                },
+                Scheme = "oauth2",
+                Name = "Bearer",
+                In = ParameterLocation.Header
+            },
+            new List<string>()
+        }
+    });
 });
+builder.Services.AddScoped<ICouponRepository, CouponRepository>();
+builder.Services.AddScoped<IAuthRepository, AuthRepository>();
 builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddAutoMapper(typeof(MappingConfig));
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+builder.Services.AddAuthentication(auth =>
+{
+    auth.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    auth.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+}).AddJwtBearer(options =>
+{
+    options.RequireHttpsMetadata = false;
+    options.SaveToken = true;
+    options.TokenValidationParameters = new()
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(builder.Configuration.GetValue<string>("ApiSettings:Secret"))),
+        ValidateIssuer = false,
+        ValidateAudience = false
+    };
+});
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("admin"));
+});
 
 var app = builder.Build();
 
@@ -34,171 +88,41 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.MapGet("/api/coupon", [EndpointDescription("Get all Coupons...")] (ILogger<Coupon> _logger, ApplicationDbContext _db) =>
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.ConfigureAuthEndpoints();
+app.ConfigureCouponEndpoints();
+
+//app.MapGet("/api/coupon/special", (string couponName, int PageSize, int Page, ILogger<Program> _logger, ApplicationDbContext _db) =>
+//{
+//    if (couponName is not null)
+//        return _db.Coupons!.Where(c => c.Name.Contains(couponName)).Skip((Page - 1) * PageSize).Take(PageSize);
+
+//    return _db.Coupons!.Skip((Page - 1) * PageSize).Take(PageSize);
+//});
+
+app.MapGet("/api/coupon/special", ([AsParameters] CouponRequestSpecial request, ApplicationDbContext _db) =>
 {
-    _logger.Log(LogLevel.Information, "Get all coupons.");
+    if (request.CouponName is not null)
+        return _db.Coupons!.Where(c => c.Name.Contains(request.CouponName)).Skip((request.Page - 1) * request.PageSize).Take(request.PageSize);
 
-    APIResponse response = new()
-    {
-        IsSuccess = true,
-        Result = _db.Coupons,
-        StatusCode = HttpStatusCode.OK
-    };
-
-    return Results.Ok(response);
-})
-.WithName("GetCoupons")
-.Produces<APIResponse>(200)
-.WithDescription("Get all Coupons...");
-
-app.MapGet("/api/coupon/{id:int}", [EndpointDescription("Get Coupon by Id...")] async (ILogger<Coupon> _logger, ApplicationDbContext _db, int id) =>
-{
-    APIResponse response = new()
-    {
-        IsSuccess = false,
-        StatusCode = HttpStatusCode.BadRequest
-    };
-
-    _logger.Log(LogLevel.Information, "Get coupon.");
-
-    if (await _db.Coupons!.FirstOrDefaultAsync(c => c.Id == id) is null)
-        response.ErrorMessages.Add("Invalid Id");
-    else
-    {
-        response.IsSuccess = true;
-        response.Result = await _db.Coupons!.FirstOrDefaultAsync(c => c.Id == id);
-        response.StatusCode = HttpStatusCode.OK;
-    }
-
-    return Results.Ok(response);
-})
-.WithName("GetCoupon")
-.Produces<APIResponse>(200)
-.Produces(400)
-.WithDescription("Get Coupon by Id...");
-
-app.MapPost("/api/coupon", async (ILogger<Coupon> _logger, IValidator<CouponCreateRequest> _validator, IMapper _mapper,
-    ApplicationDbContext _db, [FromBody] CouponCreateRequest couponRequest, HttpRequest request) =>
-{
-    _logger.Log(LogLevel.Information, "Create coupon.");
-
-    APIResponse response = new()
-    {
-        IsSuccess = false,
-        StatusCode = HttpStatusCode.BadRequest
-    };
-
-    var validationResult = await _validator.ValidateAsync(couponRequest);
-
-    if (!validationResult.IsValid)
-    {
-        response.ErrorMessages.Add(validationResult.Errors.FirstOrDefault()!.ErrorMessage.ToString());
-        return Results.BadRequest(response);
-    }
-
-    if (await _db.Coupons!.FirstOrDefaultAsync(c => c.Name!.ToLower() == couponRequest.Name!.ToLower()) is not null)
-    {
-        response.ErrorMessages.Add("Coupon Name already Exists");
-        return Results.BadRequest(response);
-    }
-
-    // Mapping Coupon to CouponCreateRequest
-    Coupon coupon = _mapper.Map<Coupon>(couponRequest);
-
-    // Database will detect Id and auto increment it
-    //coupon.Id = _db.Coupons!.Max(c => c.Id) + 1;
-    coupon.Created = DateTime.Now;
-
-    _db.Coupons!.Add(coupon);
-    await _db.SaveChangesAsync();
-
-    // Mapping CouponCreateResponse to Coupon
-    CouponCreateResponse couponResponse = _mapper.Map<CouponCreateResponse>(coupon);
-
-    response.IsSuccess = true;
-    response.Result = couponResponse;
-    response.StatusCode = HttpStatusCode.Created;
-
-    return Results.CreatedAtRoute("GetCoupon", new { id = coupon.Id }, response);
-})
-.WithName("CreateCoupon")
-.Produces<APIResponse>(201)
-.Produces(400)
-.Accepts<CouponCreateRequest>("application/json");
-
-app.MapPut("/api/coupon", async (ILogger<Coupon> _logger, IValidator<CouponUpdateRequest> _validator, IMapper _mapper,
-    ApplicationDbContext _db, [FromBody] CouponUpdateRequest couponRequest) =>
-{
-    _logger.Log(LogLevel.Information, "Update Coupon.");
-
-    APIResponse response = new()
-    {
-        IsSuccess = false,
-        StatusCode = HttpStatusCode.BadRequest
-    };
-
-    var validationResult = await _validator.ValidateAsync(couponRequest);
-
-    if (!validationResult.IsValid)
-    {
-        response.ErrorMessages.Add(validationResult.Errors.FirstOrDefault()!.ErrorMessage.ToString());
-        return Results.BadRequest(response);
-    }
-
-    var couponFromStore = await _db.Coupons!.FirstOrDefaultAsync(c => c.Id == couponRequest.Id);
-    couponFromStore!.Name = couponRequest.Name;
-    couponFromStore.Percent = couponRequest.Percent;
-    couponFromStore.IsActive = couponRequest.IsActive;
-    couponFromStore.LastUpdated = DateTime.Now;
-
-    //_db.Coupons!.Update(_mapper.Map<Coupon>(couponFromStore));
-    await _db.SaveChangesAsync();
-
-    response.IsSuccess = true;
-    response.Result = _mapper.Map<Coupon>(couponFromStore);
-    response.StatusCode = HttpStatusCode.OK;
-
-    return Results.Ok(response);
-})
-.WithName("UpdateCoupon")
-.Produces<APIResponse>(200)
-.Produces(400)
-.Accepts<CouponUpdateRequest>("application/json");
-
-app.MapDelete("/api/coupon/{id:int}", async (ILogger<Coupon> _logger, ApplicationDbContext _db, int id) =>
-{
-    _logger.Log(LogLevel.Information, "Delete Coupon");
-
-    APIResponse response = new()
-    {
-        IsSuccess = false,
-        StatusCode = HttpStatusCode.BadRequest
-    };
-
-    var couponFromStore = await _db.Coupons!.FirstOrDefaultAsync(c => c.Id == id);
-
-    if (couponFromStore is not null)
-    {
-        _db.Coupons!.Remove(couponFromStore);
-        await _db.SaveChangesAsync();
-
-        response.Result = couponFromStore;
-        response.IsSuccess = true;
-        response.StatusCode = HttpStatusCode.NoContent;
-
-        return Results.Ok(response);
-    }
-    else
-    {
-        response.StatusCode = HttpStatusCode.NotFound;
-        response.ErrorMessages.Add("Invalid Coupon Id");
-        return Results.NotFound(response);
-    }
-})
-.WithName("DeleteCoupon")
-.Produces<APIResponse>(204)
-.Produces(404);
+    return _db.Coupons!.Skip((request.Page - 1) * request.PageSize).Take(request.PageSize);
+});
 
 app.UseHttpsRedirection();
 
 app.Run();
+
+internal class CouponRequestSpecial
+{
+    public string? CouponName { get; set; }
+
+    [FromHeader(Name = "PageSize")]
+    public int PageSize { get; set; }
+
+    [FromHeader(Name = "Page")]
+    public int Page { get; set; }
+
+    public ILogger<CouponRequestSpecial> Logger { get; set; }
+}
