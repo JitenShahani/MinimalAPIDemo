@@ -1,7 +1,3 @@
-using MagicVilla_CouponAPI.Repository.IRepository;
-using System.ComponentModel.DataAnnotations;
-using System.Diagnostics;
-
 var builder = WebApplication.CreateBuilder (args);
 
 // Add services to the container.

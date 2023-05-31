@@ -17,6 +17,12 @@ public static class AuthEndpoints
            .Accepts<RegistrationRequest>("application/json");
     }
 
+    /// <summary>
+    /// Login
+    /// </summary>
+    /// <param name="_autoRepo"></param>
+    /// <param name="model"></param>
+    /// <returns>JWT Token</returns>
     private static async Task<IResult> Login(IAuthRepository _autoRepo, [FromBody] LoginRequest model)
     {
         APIResponse response = new()
@@ -40,6 +46,12 @@ public static class AuthEndpoints
         return Results.Ok(response);
     }
 
+    /// <summary>
+    /// Register a New User
+    /// </summary>
+    /// <param name="_autoRepo"></param>
+    /// <param name="model"></param>
+    /// <returns></returns>
     private static async Task<IResult> Register(IAuthRepository _autoRepo, [FromBody] RegistrationRequest model)
     {
         APIResponse response = new()
