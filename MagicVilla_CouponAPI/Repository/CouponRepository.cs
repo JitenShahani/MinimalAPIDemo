@@ -1,5 +1,8 @@
 namespace MagicVilla_CouponAPI.Repository;
 
+/// <summary>
+/// This is my repository class. This class talks with my DbContext
+/// </summary>
 public class CouponRepository : ICouponRepository
 {
     public readonly ApplicationDbContext _db;
