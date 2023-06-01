@@ -1,14 +1,18 @@
 ﻿namespace MagicVilla_CouponAPI.Data;
 
+/// <summary>
+/// My DbContext Class for Coupons and Auth
+/// </summary>
 public class ApplicationDbContext : DbContext
 {
-    public DbSet<Coupon>? Coupons { get; set; }
-    public DbSet<LocalUser>? LocalUsers { get; set; }
+    public DbSet<Coupon> Coupons { get; set; }
+    public DbSet<LocalUser> LocalUsers { get; set; }
 
-    public ApplicationDbContext (DbContextOptions<ApplicationDbContext> option) : base (option)
-    {
-    }
 
+    /// <summary>
+    /// OnModelCreating. Adding 2 records for Coupon
+    /// </summary>
+    /// <param name="modelBuilder"></param>
     protected override void OnModelCreating (ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Coupon> ()

@@ -1,7 +1,14 @@
 namespace MagicVilla_CouponAPI.Endpoints;
 
+/// <summary>
+/// Auth Endpoints Class
+/// </summary>
 public static class AuthEndpoints
 {
+    /// <summary>
+    /// My endpoint methods for Auth
+    /// </summary>
+    /// <param name="app">WebApplication</param>
     public static void ConfigureAuthEndpoints(this WebApplication app)
     {
         app.MapPost("/api/login", Login)

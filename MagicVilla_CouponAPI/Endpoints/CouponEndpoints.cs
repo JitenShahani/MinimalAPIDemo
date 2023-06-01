@@ -3,6 +3,9 @@ using System.Diagnostics;
 
 namespace MagicVilla_CouponAPI.Endpoints;
 
+/// <summary>
+/// My EndPoint class for Coupons
+/// </summary>
 public static class CouponEndpoints
 {
 	/// <summary>
